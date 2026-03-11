@@ -1,0 +1,28 @@
+# Composer dependencies
+/vendor/
+
+# Local configuration
+.env
+src/Core/Config/database.php
+*.local.php
+
+# Uploads
+/public/uploads/
+
+# Logs
+*.log
+/logs/
+
+# IDE
+/.idea/
+/.vscode/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.swp
+*.bak
+~*

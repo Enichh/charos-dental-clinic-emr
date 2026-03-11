@@ -1,0 +1,19 @@
+{
+    "name": "enoch/charosdentalclinicemrsystem",
+    "description": "Web-based EMR system for Charos Dental Clinic with appointment scheduling and e-prescriptions.",
+    "type": "project",
+    "authors": [
+        {
+            "name": "Enichh",
+            "email": "enochastor@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {},
+    "autoload": {
+        "psr-4": {
+            "Core\\": "src/Core/",
+            "Modules\\": "src/Modules/"
+        }
+    }
+}
