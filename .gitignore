@@ -30,3 +30,6 @@ Thumbs.db
 ~*
 .continue
 *.md
+
+# Database seeding scripts with sensitive data
+seed_database.php
