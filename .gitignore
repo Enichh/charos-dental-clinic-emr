@@ -5,6 +5,7 @@
 .env
 src/Core/Config/database.php
 *.local.php
+config/encryption.key
 
 # Uploads
 /public/uploads/

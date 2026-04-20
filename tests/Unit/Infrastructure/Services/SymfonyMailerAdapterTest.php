@@ -14,13 +14,18 @@ class SymfonyMailerAdapterTest extends TestCase
         $dotenv = \Dotenv\Dotenv::createImmutable(__DIR__ . '/../../../../');
         $dotenv->load();
 
-        $appPassword = $_ENV['APP_PASSWORD'] ?? '';
-        $dsn = "gmail://charosdental:" . rawurlencode($appPassword) . "@default";
+        $dsn = $_ENV['MAILER_DSN'] ?? '';
+        $fromEmail = $_ENV['MAILER_FROM_EMAIL'] ?? '';
+        $fromName = $_ENV['MAILER_FROM_NAME'] ?? 'Charos Dental Clinic';
+
+        if (empty($dsn) || empty($fromEmail)) {
+            $this->markTestSkipped('Mailer credentials not configured in environment');
+        }
 
         $this->mailer = new SymfonyMailerAdapter(
             dsn: $dsn,
-            fromEmail: 'charosdental@gmail.com',
-            fromName: 'Charos Dental Clinic'
+            fromEmail: $fromEmail,
+            fromName: $fromName
         );
     }
 

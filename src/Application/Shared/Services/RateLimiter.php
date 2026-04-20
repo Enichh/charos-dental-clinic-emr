@@ -24,7 +24,7 @@ class RateLimiter
     private function getStorageFile(string $identifier): string
     {
         // Hash with secret to prevent identifier enumeration
-        $secret = $_ENV['RATE_LIMIT_SECRET'] ?? 'default-secret-change-in-production';
+        $secret = $_ENV['RATE_LIMIT_SECRET'] ?? throw new \RuntimeException('RATE_LIMIT_SECRET environment variable is required');
         return $this->storagePath . '/' . md5($secret . $identifier) . '.json';
     }
 
