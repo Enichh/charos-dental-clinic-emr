@@ -7,6 +7,7 @@ use CharosEMR\Application\Shared\Services\AuditLogger;
 use CharosEMR\Application\Shared\Services\RateLimiter;
 use CharosEMR\Application\Shared\Services\CsrfProtectionService;
 use CharosEMR\Application\Shared\Services\MfaService;
+use CharosEMR\Application\Shared\Validation\SchemaValidator;
 use CharosEMR\Domain\Shared\Entities\VerificationCode;
 use CharosEMR\Domain\Shared\Repositories\VerificationCodeRepositoryInterface;
 use CharosEMR\Domain\User\Repositories\UserRepositoryInterface;
@@ -25,7 +26,8 @@ class AuthController
         private RateLimiter $rateLimiter,
         private AuditLogger $auditLogger,
         private CsrfProtectionService $csrfService,
-        private MfaService $mfaService
+        private MfaService $mfaService,
+        private SchemaValidator $schemaValidator
     ) {}
 
     public function getCsrfToken()
@@ -40,16 +42,28 @@ class AuthController
 
         $input = json_decode(file_get_contents('php://input'), true);
         $email = $input['email'] ?? '';
+        $password = $input['password'] ?? '';
 
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // Validate email and password using SchemaValidator
+        $validationResult = $this->schemaValidator->validate([
+            'email' => $email,
+            'password' => $password
+        ], [
+            'email' => 'required|email',
+            'password' => 'required|min:8'
+        ]);
+
+        if ($validationResult->hasErrors()) {
+            $this->auditLogger->log('LOGIN_VALIDATION_FAILED', $email, ['errors' => $validationResult->getErrors()], false);
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid email address']);
+            echo json_encode(['error' => implode(', ', $validationResult->getErrors()['password'] ?? $validationResult->getErrors()['email'] ?? ['Validation failed'])]);
             return;
         }
 
         // Rate limiting: max 5 requests per 5 minutes per email
         if (!$this->rateLimiter->checkLimit('login_code_' . $email, 5, 300)) {
             $retryAfter = $this->rateLimiter->getRetryAfter('login_code_' . $email, 300);
+            $this->auditLogger->log('LOGIN_RATE_LIMIT_EXCEEDED', $email, ['retry_after' => $retryAfter], false);
             http_response_code(429);
             echo json_encode(['error' => 'Too many requests', 'retry_after' => $retryAfter]);
             return;
@@ -57,8 +71,17 @@ class AuthController
 
         $user = $this->userRepository->findByEmail($email);
         if (!$user) {
+            $this->auditLogger->log('LOGIN_USER_NOT_FOUND', $email, [], false);
             http_response_code(404);
             echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        // Verify password against stored hash
+        if (!$this->passwordHasher->verify($password, $user->getPasswordHash())) {
+            $this->auditLogger->log('LOGIN_INVALID_PASSWORD', $email, ['user_id' => $user->getId()], false);
+            http_response_code(401);
+            echo json_encode(['error' => 'Invalid credentials']);
             return;
         }
 
@@ -80,8 +103,10 @@ class AuthController
         $sent = $this->verificationCodeService->sendVerificationCode($email, $code, 'login');
 
         if ($sent) {
+            $this->auditLogger->log('LOGIN_CODE_SENT', $email, ['expires_at' => $expiresAt->format('Y-m-d H:i:s')], true);
             echo json_encode(['message' => 'Verification code sent', 'expires_in' => '15 minutes']);
         } else {
+            $this->auditLogger->log('LOGIN_CODE_SEND_FAILED', $email, [], false);
             http_response_code(500);
             echo json_encode(['error' => 'Failed to send verification code']);
         }
@@ -94,10 +119,30 @@ class AuthController
         $input = json_decode(file_get_contents('php://input'), true);
         $email = $input['email'] ?? '';
         $code = $input['code'] ?? '';
+        $password = $input['password'] ?? '';
 
-        if (empty($email) || empty($code)) {
+        error_log("verifyAndLogin called: email=" . $email);
+
+        if (empty($email) || empty($code) || empty($password)) {
+            $this->auditLogger->log('LOGIN_MISSING_FIELDS', $email, [], false);
             http_response_code(400);
-            echo json_encode(['error' => 'Email and code are required']);
+            echo json_encode(['error' => 'Email, code, and password are required']);
+            return;
+        }
+
+        // Verify password first
+        $user = $this->userRepository->findByEmail($email);
+        if (!$user) {
+            $this->auditLogger->log('LOGIN_VERIFY_USER_NOT_FOUND', $email, [], false);
+            http_response_code(404);
+            echo json_encode(['error' => 'User not found']);
+            return;
+        }
+
+        if (!$this->passwordHasher->verify($password, $user->getPasswordHash())) {
+            $this->auditLogger->log('LOGIN_VERIFY_INVALID_PASSWORD', $email, ['user_id' => $user->getId()], false);
+            http_response_code(401);
+            echo json_encode(['error' => 'Invalid credentials']);
             return;
         }
 
@@ -107,6 +152,7 @@ class AuthController
             // Rate limiting: max 5 failed attempts per 5 minutes
             if (!$this->rateLimiter->checkLimit('login_attempt_' . $email, 5, 300)) {
                 $retryAfter = $this->rateLimiter->getRetryAfter('login_attempt_' . $email, 300);
+                $this->auditLogger->log('LOGIN_VERIFY_RATE_LIMIT_EXCEEDED', $email, ['retry_after' => $retryAfter], false);
                 http_response_code(429);
                 echo json_encode(['error' => 'Too many failed attempts', 'retry_after' => $retryAfter]);
                 return;
@@ -121,24 +167,24 @@ class AuthController
         $verificationCode->markAsUsed();
         $this->verificationCodeRepository->save($verificationCode);
 
-        $user = $this->userRepository->findByEmail($email);
-        if ($user) {
-            $user->updateLastLogin();
-            $this->userRepository->save($user);
+        // User already fetched and verified above
+        $user->updateLastLogin();
+        $this->userRepository->save($user);
 
-            // Reset rate limiter on successful login
-            $this->rateLimiter->reset('login_attempt_' . $email);
+        // Reset rate limiter on successful login
+        $this->rateLimiter->reset('login_attempt_' . $email);
 
-            // Set session data
-            session_regenerate_id(true); // Prevent session fixation
-            $_SESSION['user_id'] = $user->getId();
-            $_SESSION['user_email'] = $user->getEmail();
-            $_SESSION['user_role'] = $user->getRole()->value;
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-            $_SESSION['last_activity'] = time();
+        $this->auditLogger->log('LOGIN_SUCCESS', (string)$user->getId(), ['email' => $email], true);
 
-            $this->auditLogger->logLogin((string)$user->getId(), true);
-        }
+        // Set session data
+        session_regenerate_id(true); // Prevent session fixation
+        $_SESSION['user_id'] = $user->getId();
+        $_SESSION['user_email'] = $user->getEmail();
+        $_SESSION['user_role'] = $user->getRole()->value;
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        $_SESSION['last_activity'] = time();
+
+        $this->auditLogger->logLogin((string)$user->getId(), true);
 
         echo json_encode([
             'message' => 'Login successful',
@@ -157,24 +203,50 @@ class AuthController
         $input = json_decode(file_get_contents('php://input'), true);
         $email = $input['email'] ?? '';
         $password = $input['password'] ?? '';
-        $name = $input['name'] ?? '';
+        $firstName = $input['first_name'] ?? '';
+        $lastName = $input['last_name'] ?? '';
+        $dateOfBirth = $input['date_of_birth'] ?? '';
+        $gender = $input['gender'] ?? '';
+        $phoneNumber = $input['phone_number'] ?? '';
+        $address = $input['address'] ?? '';
+        $bloodType = $input['blood_type'] ?? '';
+        $allergies = $input['allergies'] ?? '';
 
-        if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Invalid email address']);
-            return;
-        }
+        $this->auditLogger->log('SIGNUP_CODE_REQUEST', $email, ['email' => $email], true);
 
-        if (empty($password) || strlen($password) < 8) {
+        // Validate required fields
+        $validationResult = $this->schemaValidator->validate([
+            'email' => $email,
+            'password' => $password,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'date_of_birth' => $dateOfBirth,
+            'gender' => $gender
+        ], [
+            'email' => 'required|email',
+            'password' => 'required|min:8',
+            'first_name' => 'required|min:2|max:100',
+            'last_name' => 'required|min:2|max:100',
+            'date_of_birth' => 'required|date',
+            'gender' => 'required|in:male,female,other',
+            'phone_number' => 'max:20',
+            'address' => 'max:500',
+            'blood_type' => 'max:5',
+            'allergies' => 'max:1000'
+        ]);
+
+        if ($validationResult->hasErrors()) {
+            $this->auditLogger->log('SIGNUP_VALIDATION_FAILED', $email, ['errors' => $validationResult->getErrors()], false);
             http_response_code(400);
-            echo json_encode(['error' => 'Password must be at least 8 characters']);
+            echo json_encode(['error' => implode(', ', $validationResult->getErrors()[array_key_first($validationResult->getErrors())])]);
             return;
         }
 
         $existingUser = $this->userRepository->findByEmail($email);
         if ($existingUser) {
+            $this->auditLogger->log('SIGNUP_EMAIL_EXISTS', $email, ['user_id' => $existingUser->getId()], false);
             http_response_code(409);
-            echo json_encode(['error' => 'Email already registered']);
+            echo json_encode(['error' => 'This email is already registered. Please login instead or use a different email address.']);
             return;
         }
 
@@ -196,8 +268,10 @@ class AuthController
         $sent = $this->verificationCodeService->sendVerificationCode($email, $code, 'signup');
 
         if ($sent) {
+            $this->auditLogger->log('SIGNUP_CODE_SENT', $email, ['expires_at' => $expiresAt->format('Y-m-d H:i:s')], true);
             echo json_encode(['message' => 'Verification code sent', 'expires_in' => '15 minutes']);
         } else {
+            $this->auditLogger->log('SIGNUP_CODE_SEND_FAILED', $email, [], false);
             http_response_code(500);
             echo json_encode(['error' => 'Failed to send verification code']);
         }
@@ -211,26 +285,38 @@ class AuthController
         $email = $input['email'] ?? '';
         $code = $input['code'] ?? '';
         $password = $input['password'] ?? '';
-        $name = $input['name'] ?? '';
+        $firstName = $input['first_name'] ?? '';
+        $lastName = $input['last_name'] ?? '';
+        $dateOfBirth = $input['date_of_birth'] ?? '';
+        $gender = $input['gender'] ?? '';
+        $phoneNumber = $input['phone_number'] ?? '';
+        $address = $input['address'] ?? '';
+        $bloodType = $input['blood_type'] ?? '';
+        $allergies = $input['allergies'] ?? '';
 
-        if (empty($email) || empty($code) || empty($password) || empty($name)) {
+        $this->auditLogger->log('SIGNUP_VERIFY_REQUEST', $email, ['email' => $email], true);
+
+        if (empty($email) || empty($code) || empty($password) || empty($firstName) || empty($lastName) || empty($dateOfBirth) || empty($gender)) {
+            $this->auditLogger->log('SIGNUP_VERIFY_MISSING_FIELDS', $email, [], false);
             http_response_code(400);
-            echo json_encode(['error' => 'All fields are required']);
+            echo json_encode(['error' => 'All required fields must be provided']);
             return;
         }
 
         $verificationCode = $this->verificationCodeRepository->findByEmailAndCode($email, $code);
 
         if (!$verificationCode || !$verificationCode->isValid()) {
+            $this->auditLogger->log('SIGNUP_VERIFY_INVALID_CODE', $email, [], false);
             http_response_code(401);
             echo json_encode(['error' => 'Invalid or expired verification code']);
             return;
         }
 
-        $existingUser = $this->userRepository->findByEmail($email);
-        if ($existingUser) {
-            http_response_code(409);
-            echo json_encode(['error' => 'Email already registered']);
+        try {
+            $dateOfBirthObj = new \DateTime($dateOfBirth);
+        } catch (\Exception $e) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid date of birth format']);
             return;
         }
 
@@ -249,17 +335,17 @@ class AuthController
         // Create Patient record
         $patient = new \CharosEMR\Domain\User\Entities\Patient(
             null,
-            $name,
-            $email,
-            $passwordHash,
-            Gender::OTHER, // Default gender, can be updated later
-            null,
-            null,
-            null
+            $user->getId(),
+            $firstName,
+            $lastName,
+            $dateOfBirthObj,
+            Gender::from($gender),
+            $phoneNumber ?: null,
+            $address ?: null,
+            $bloodType ?: null,
+            $allergies ?: null
         );
 
-        // Set the user_id for the patient
-        $patient->setId($user->getId());
         $this->patientRepository->save($patient);
 
         // Set session data
@@ -272,6 +358,8 @@ class AuthController
 
         $verificationCode->markAsUsed();
         $this->verificationCodeRepository->save($verificationCode);
+
+        $this->auditLogger->log('SIGNUP_SUCCESS', (string)$user->getId(), ['email' => $email, 'role' => $user->getRole()->value], true);
 
         echo json_encode([
             'message' => 'Registration successful',

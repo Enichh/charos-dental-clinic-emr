@@ -32,23 +32,6 @@ class AuditLogger
         // Encrypt sensitive details before storage
         $sanitizedDetails = $this->sanitizeDetails($details);
 
-        $auditLog = new AuditLog(
-            null,
-            new \DateTime(),
-            $userId ?? $sessionUserId,
-            $sessionEmail,
-            $sessionRole,
-            $action,
-            $details['resource_type'] ?? null,
-            $details['resource_id'] ?? null,
-            isset($_SERVER) ? ($_SERVER['REMOTE_ADDR'] ?? 'CLI') : 'CLI',
-            isset($_SERVER) ? ($_SERVER['HTTP_USER_AGENT'] ?? 'CLI') : 'CLI',
-            $sanitizedDetails,
-            $success
-        );
-
-        $this->auditLogRepository->save($auditLog);
-
         $logEntry = [
             'timestamp' => date('Y-m-d H:i:s'),
             'user_id' => $userId ?? $sessionUserId,
@@ -59,7 +42,31 @@ class AuditLogger
             'success' => $success
         ];
 
+        // Always log to file first (in case database fails)
         $this->logger->info('AUDIT: ' . $action, $logEntry);
+
+        // Try to save to database (may fail silently)
+        try {
+            $auditLog = new AuditLog(
+                null,
+                new \DateTime(),
+                $userId ?? $sessionUserId,
+                $sessionEmail,
+                $sessionRole,
+                $action,
+                $details['resource_type'] ?? null,
+                $details['resource_id'] ?? null,
+                isset($_SERVER) ? ($_SERVER['REMOTE_ADDR'] ?? 'CLI') : 'CLI',
+                isset($_SERVER) ? ($_SERVER['HTTP_USER_AGENT'] ?? 'CLI') : 'CLI',
+                $sanitizedDetails,
+                $success
+            );
+
+            $this->auditLogRepository->save($auditLog);
+        } catch (\Exception $e) {
+            // Log database save failure but don't throw
+            error_log("Failed to save audit log to database: " . $e->getMessage());
+        }
     }
 
     /**

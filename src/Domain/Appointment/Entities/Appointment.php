@@ -14,6 +14,8 @@ class Appointment
     private string $endTime;
     private AppointmentStatus $status;
     private ?string $notes;
+    private ?string $cancelledBy;
+    private ?string $cancellationReason;
     private \DateTime $createdAt;
     private \DateTime $updatedAt;
 
@@ -26,6 +28,8 @@ class Appointment
         string $endTime,
         AppointmentStatus $status,
         ?string $notes = null,
+        ?string $cancelledBy = null,
+        ?string $cancellationReason = null,
         ?\DateTime $createdAt = null,
         ?\DateTime $updatedAt = null
     ) {
@@ -37,6 +41,8 @@ class Appointment
         $this->endTime = $endTime;
         $this->status = $status;
         $this->notes = $notes;
+        $this->cancelledBy = $cancelledBy;
+        $this->cancellationReason = $cancellationReason;
         $this->createdAt = $createdAt ?? new \DateTime();
         $this->updatedAt = $updatedAt ?? new \DateTime();
     }
@@ -81,6 +87,16 @@ class Appointment
         return $this->notes;
     }
 
+    public function getCancelledBy(): ?string
+    {
+        return $this->cancelledBy;
+    }
+
+    public function getCancellationReason(): ?string
+    {
+        return $this->cancellationReason;
+    }
+
     public function getCreatedAt(): \DateTime
     {
         return $this->createdAt;
@@ -108,9 +124,11 @@ class Appointment
         $this->id = $id;
     }
 
-    public function cancel(): void
+    public function cancel(?string $cancelledBy = null, ?string $cancellationReason = null): void
     {
         $this->status = AppointmentStatus::CANCELLED;
+        $this->cancelledBy = $cancelledBy;
+        $this->cancellationReason = $cancellationReason;
         $this->updatedAt = new \DateTime();
     }
 

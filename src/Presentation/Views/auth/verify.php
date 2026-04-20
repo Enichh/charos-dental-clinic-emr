@@ -10,11 +10,12 @@ declare(strict_types=1); ?>
             </svg>
         </div>
 
-        <h1>Verify Email</h1>
+        <h1>Two-Factor Authentication</h1>
 
         <div class="alert alert-info mb-4">
-            <strong>Check your email</strong><br>
-            We've sent a 6-digit verification code to <strong id="email-display"></strong>
+            <strong>Verification Required</strong><br>
+            We've sent a 6-digit verification code to <strong id="email-display"></strong><br>
+            Enter the code below to complete your login.
         </div>
 
         <div id="verify-error" class="alert alert-error d-none"></div>
@@ -24,20 +25,31 @@ declare(strict_types=1); ?>
             <input type="hidden" id="verify-type" name="type" value="">
             <input type="hidden" id="verify-email" name="email" value="">
             <input type="hidden" id="verify-password" name="password" value="">
-            <input type="hidden" id="verify-name" name="name" value="">
+            <input type="hidden" id="verify-first-name" name="first_name" value="">
+            <input type="hidden" id="verify-last-name" name="last_name" value="">
+            <input type="hidden" id="verify-date-of-birth" name="date_of_birth" value="">
+            <input type="hidden" id="verify-gender" name="gender" value="">
+            <input type="hidden" id="verify-phone-number" name="phone_number" value="">
+            <input type="hidden" id="verify-address" name="address" value="">
+            <input type="hidden" id="verify-blood-type" name="blood_type" value="">
+            <input type="hidden" id="verify-allergies" name="allergies" value="">
+            <input type="hidden" id="verify-csrf-token" name="csrf_token" value="">
 
             <div class="form-group">
                 <label for="verify-code">Verification Code</label>
-                <input type="text" id="verify-code" name="code" placeholder="Enter 6-digit code" required maxlength="6" pattern="[0-9]{6}">
+                <input type="text" id="verify-code" name="code" placeholder="123456" required maxlength="6" pattern="[0-9]{6}" style="letter-spacing: 0.5em; text-align: center; font-size: 1.5em; font-weight: bold;">
                 <small class="text-light" style="display: block; margin-top: 5px;">Enter the 6-digit code sent to your email</small>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-full" id="verify-submit-btn">Verify</button>
+            <button type="submit" class="btn btn-primary btn-full" id="verify-submit-btn">Verify & Login</button>
         </form>
 
         <div class="mt-4 text-center">
             <p class="text-light">Didn't receive the code?</p>
             <button type="button" class="btn btn-secondary mt-2" id="resend-btn">Resend Code</button>
+            <p class="text-light mt-3" style="font-size: 0.9em;">
+                Code expires in 15 minutes
+            </p>
         </div>
 
         <p class="auth-footer mt-4">
@@ -74,14 +86,33 @@ declare(strict_types=1); ?>
         const type = urlParams.get('type') || 'signup';
         const email = urlParams.get('email') || '';
         const password = urlParams.get('password') || '';
-        const name = urlParams.get('name') || '';
+        const firstName = urlParams.get('first_name') || '';
+        const lastName = urlParams.get('last_name') || '';
+        const dateOfBirth = urlParams.get('date_of_birth') || '';
+        const gender = urlParams.get('gender') || '';
+        const phoneNumber = urlParams.get('phone_number') || '';
+        const address = urlParams.get('address') || '';
+        const bloodType = urlParams.get('blood_type') || '';
+        const allergies = urlParams.get('allergies') || '';
 
         // Set form values
         document.getElementById('verify-type').value = type;
         document.getElementById('verify-email').value = email;
         document.getElementById('verify-password').value = password;
-        document.getElementById('verify-name').value = name;
+        document.getElementById('verify-first-name').value = firstName;
+        document.getElementById('verify-last-name').value = lastName;
+        document.getElementById('verify-date-of-birth').value = dateOfBirth;
+        document.getElementById('verify-gender').value = gender;
+        document.getElementById('verify-phone-number').value = phoneNumber;
+        document.getElementById('verify-address').value = address;
+        document.getElementById('verify-blood-type').value = bloodType;
+        document.getElementById('verify-allergies').value = allergies;
+        document.getElementById('verify-csrf-token').value = csrfToken;
         document.getElementById('email-display').textContent = email;
+
+        // Update page title based on type
+        const pageTitle = type === 'signup' ? 'Verify Email - Registration' : 'Two-Factor Authentication - Login';
+        document.title = pageTitle;
 
         // Alert helpers
         function showAlert(elementId, message) {
@@ -96,6 +127,18 @@ declare(strict_types=1); ?>
             });
         }
 
+        // Auto-verify when 6 digits are entered
+        const codeInput = document.getElementById('verify-code');
+        codeInput.addEventListener('input', function(e) {
+            const value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+            e.target.value = value;
+
+            // Auto-submit when 6 digits are entered
+            if (value.length === 6) {
+                verifyForm.dispatchEvent(new Event('submit'));
+            }
+        });
+
         // Verify form handling
         const verifyForm = document.getElementById('verify-form-element');
 
@@ -108,22 +151,41 @@ declare(strict_types=1); ?>
                 return;
             }
 
+            const submitBtn = document.getElementById('verify-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Verifying...';
+
             const type = document.getElementById('verify-type').value;
             const email = document.getElementById('verify-email').value;
             const code = document.getElementById('verify-code').value;
             const password = document.getElementById('verify-password').value;
-            const name = document.getElementById('verify-name').value;
+            const firstName = document.getElementById('verify-first-name').value;
+            const lastName = document.getElementById('verify-last-name').value;
+            const dateOfBirth = document.getElementById('verify-date-of-birth').value;
+            const gender = document.getElementById('verify-gender').value;
+            const phoneNumber = document.getElementById('verify-phone-number').value;
+            const address = document.getElementById('verify-address').value;
+            const bloodType = document.getElementById('verify-blood-type').value;
+            const allergies = document.getElementById('verify-allergies').value;
 
             const endpoint = type === 'signup' ? basePath + '/api/auth/verify-signup' : basePath + '/api/auth/verify-login';
             const body = type === 'signup' ? {
                 email,
                 code,
                 password,
-                name,
+                first_name: firstName,
+                last_name: lastName,
+                date_of_birth: dateOfBirth,
+                gender,
+                phone_number: phoneNumber,
+                address,
+                blood_type: bloodType,
+                allergies,
                 csrf_token: csrfToken
             } : {
                 email,
                 code,
+                password,
                 csrf_token: csrfToken
             };
 
@@ -141,20 +203,20 @@ declare(strict_types=1); ?>
                 if (response.ok) {
                     showAlert('verify-success', data.message);
 
-                    if (type === 'signup') {
-                        setTimeout(() => {
-                            window.location.href = basePath + '/patient/dashboard';
-                        }, 2000);
-                    } else {
-                        setTimeout(() => {
-                            window.location.href = basePath + '/patient/dashboard';
-                        }, 1500);
-                    }
+                    // Redirect to patient dashboard (admin dashboard not implemented yet)
+                    setTimeout(() => {
+                        window.location.href = basePath + '/patient/dashboard';
+                    }, 1500);
                 } else {
                     showAlert('verify-error', data.error || 'Invalid verification code');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Verify & Login';
                 }
             } catch (error) {
-                showAlert('verify-error', 'Network error. Please try again.');
+                console.error('Verification error:', error);
+                showAlert('verify-error', 'Network error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Verify & Login';
             }
         });
 
@@ -169,19 +231,37 @@ declare(strict_types=1); ?>
                 return;
             }
 
+            resendBtn.disabled = true;
+            resendBtn.textContent = 'Sending...';
+
             const type = document.getElementById('verify-type').value;
             const email = document.getElementById('verify-email').value;
             const password = document.getElementById('verify-password').value;
-            const name = document.getElementById('verify-name').value;
+            const firstName = document.getElementById('verify-first-name').value;
+            const lastName = document.getElementById('verify-last-name').value;
+            const dateOfBirth = document.getElementById('verify-date-of-birth').value;
+            const gender = document.getElementById('verify-gender').value;
+            const phoneNumber = document.getElementById('verify-phone-number').value;
+            const address = document.getElementById('verify-address').value;
+            const bloodType = document.getElementById('verify-blood-type').value;
+            const allergies = document.getElementById('verify-allergies').value;
 
             const endpoint = type === 'signup' ? basePath + '/api/auth/send-signup-code' : basePath + '/api/auth/send-login-code';
             const body = type === 'signup' ? {
                 email,
                 password,
-                name,
+                first_name: firstName,
+                last_name: lastName,
+                date_of_birth: dateOfBirth,
+                gender,
+                phone_number: phoneNumber,
+                address,
+                blood_type: bloodType,
+                allergies,
                 csrf_token: csrfToken
             } : {
                 email,
+                password,
                 csrf_token: csrfToken
             };
 
@@ -198,11 +278,17 @@ declare(strict_types=1); ?>
 
                 if (response.ok) {
                     showAlert('verify-success', 'Verification code resent successfully!');
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = 'Resend Code';
                 } else {
                     showAlert('verify-error', data.error || 'Failed to resend code');
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = 'Resend Code';
                 }
             } catch (error) {
                 showAlert('verify-error', 'Network error. Please try again.');
+                resendBtn.disabled = false;
+                resendBtn.textContent = 'Resend Code';
             }
         });
     });

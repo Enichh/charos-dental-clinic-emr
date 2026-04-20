@@ -12,6 +12,10 @@ class PDOPatientRepository implements PatientRepositoryInterface
 {
     private DataEncryption $encryption;
 
+    /**
+     * Requires patients table with columns: id, user_id, first_name, last_name,
+     * date_of_birth, gender, phone_number, address, blood_type, allergies
+     */
     public function __construct(
         private PDO $pdo,
         DataEncryption $encryption
@@ -21,42 +25,51 @@ class PDOPatientRepository implements PatientRepositoryInterface
 
     public function save(Patient $patient): Patient
     {
-        if ($patient->getId() === null) {
-            $stmt = $this->pdo->prepare(
-                "INSERT INTO patients (first_name, last_name, date_of_birth, gender, phone_number, address, blood_type, allergies) 
-                 VALUES (:first_name, :last_name, :date_of_birth, :gender, :phone_number, :address, :blood_type, :allergies)"
-            );
-            $stmt->execute([
-                ':first_name' => $this->extractFirstName($patient->getName()),
-                ':last_name' => $this->extractLastName($patient->getName()),
-                ':date_of_birth' => $patient->getDateOfBirth() ? $patient->getDateOfBirth()->format('Y-m-d') : null,
-                ':gender' => $patient->getGender()->value,
-                ':phone_number' => $this->encrypt($patient->getPhoneNumber()),
-                ':address' => $this->encrypt($patient->getAddress()),
-                ':blood_type' => null,
-                ':allergies' => null
-            ]);
-            $patient->setId((int) $this->pdo->lastInsertId());
-        } else {
-            $stmt = $this->pdo->prepare(
-                "UPDATE patients SET first_name = :first_name, last_name = :last_name, 
-                 date_of_birth = :date_of_birth, gender = :gender, phone_number = :phone_number, 
-                 address = :address, blood_type = :blood_type, allergies = :allergies WHERE id = :id"
-            );
-            $stmt->execute([
-                ':id' => $patient->getId(),
-                ':first_name' => $this->extractFirstName($patient->getName()),
-                ':last_name' => $this->extractLastName($patient->getName()),
-                ':date_of_birth' => $patient->getDateOfBirth() ? $patient->getDateOfBirth()->format('Y-m-d') : null,
-                ':gender' => $patient->getGender()->value,
-                ':phone_number' => $this->encrypt($patient->getPhoneNumber()),
-                ':address' => $this->encrypt($patient->getAddress()),
-                ':blood_type' => null,
-                ':allergies' => null
-            ]);
-        }
+        try {
+            if ($patient->getId() === null) {
+                $stmt = $this->pdo->prepare(
+                    "INSERT INTO patients (user_id, first_name, last_name, date_of_birth, gender, phone_number, address, blood_type, allergies)
+                     VALUES (:user_id, :first_name, :last_name, :date_of_birth, :gender, :phone_number, :address, :blood_type, :allergies)"
+                );
+                $stmt->execute([
+                    ':user_id' => $patient->getUserId(),
+                    ':first_name' => $patient->getFirstName(),
+                    ':last_name' => $patient->getLastName(),
+                    ':date_of_birth' => $patient->getDateOfBirth()->format('Y-m-d'),
+                    ':gender' => $patient->getGender()->value,
+                    ':phone_number' => $this->encrypt($patient->getPhoneNumber()),
+                    ':address' => $this->encrypt($patient->getAddress()),
+                    ':blood_type' => $this->encrypt($patient->getBloodType()),
+                    ':allergies' => $this->encrypt($patient->getAllergies())
+                ]);
+                $patient->setId((int) $this->pdo->lastInsertId());
+            } else {
+                $stmt = $this->pdo->prepare(
+                    "UPDATE patients SET user_id = :user_id, first_name = :first_name, last_name = :last_name,
+                     date_of_birth = :date_of_birth, gender = :gender, phone_number = :phone_number,
+                     address = :address, blood_type = :blood_type, allergies = :allergies WHERE id = :id"
+                );
+                $stmt->execute([
+                    ':id' => $patient->getId(),
+                    ':user_id' => $patient->getUserId(),
+                    ':first_name' => $patient->getFirstName(),
+                    ':last_name' => $patient->getLastName(),
+                    ':date_of_birth' => $patient->getDateOfBirth()->format('Y-m-d'),
+                    ':gender' => $patient->getGender()->value,
+                    ':phone_number' => $this->encrypt($patient->getPhoneNumber()),
+                    ':address' => $this->encrypt($patient->getAddress()),
+                    ':blood_type' => $this->encrypt($patient->getBloodType()),
+                    ':allergies' => $this->encrypt($patient->getAllergies())
+                ]);
+            }
 
-        return $patient;
+            return $patient;
+        } catch (\PDOException $e) {
+            if (str_contains($e->getMessage(), 'Unknown column')) {
+                throw new \RuntimeException('Database schema mismatch: patients table is missing required columns');
+            }
+            throw $e;
+        }
     }
 
     public function findByUserId(int $userId): ?Patient
@@ -104,17 +117,17 @@ class PDOPatientRepository implements PatientRepositoryInterface
 
     private function hydratePatient(array $data): Patient
     {
-        $fullName = trim($data['first_name'] . ' ' . $data['last_name']);
-
         return new Patient(
             (int) $data['id'],
-            $fullName,
-            '', // Email is stored in users table, not patients
-            '', // Password is stored in users table, not patients
+            (int) $data['user_id'],
+            $data['first_name'],
+            $data['last_name'],
+            new \DateTime($data['date_of_birth']),
             Gender::from($data['gender']),
             $this->decrypt($data['phone_number']),
             $this->decrypt($data['address']),
-            $data['date_of_birth'] ? new \DateTime($data['date_of_birth']) : null
+            $this->decrypt($data['blood_type']),
+            $this->decrypt($data['allergies'])
         );
     }
 
@@ -127,7 +140,7 @@ class PDOPatientRepository implements PatientRepositoryInterface
             return $this->encryption->encrypt($data);
         } catch (\Exception $e) {
             error_log("Encryption failed: " . $e->getMessage());
-            return null;
+            throw new \RuntimeException('Failed to encrypt sensitive data');
         }
     }
 
@@ -140,20 +153,7 @@ class PDOPatientRepository implements PatientRepositoryInterface
             return $this->encryption->decrypt($data);
         } catch (\Exception $e) {
             error_log("Decryption failed: " . $e->getMessage());
-            return null;
+            throw new \RuntimeException('Failed to decrypt sensitive data');
         }
-    }
-
-    private function extractFirstName(string $fullName): string
-    {
-        $parts = explode(' ', trim($fullName));
-        return $parts[0] ?? '';
-    }
-
-    private function extractLastName(string $fullName): string
-    {
-        $parts = explode(' ', trim($fullName));
-        array_shift($parts); // Remove first name
-        return implode(' ', $parts);
     }
 }

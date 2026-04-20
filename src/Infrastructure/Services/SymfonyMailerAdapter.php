@@ -15,13 +15,12 @@ class SymfonyMailerAdapter implements MailerInterface
 
     public function __construct(
         ?string $dsn = null,
-        string $fromEmail = 'noreply@charosdental.com',
         string $fromName = 'Charos Dental Clinic'
     ) {
         $dsn = $dsn ?? $_ENV['MAILER_DSN'] ?? 'smtp://localhost:25';
         $transport = Transport::fromDsn($dsn);
         $this->mailer = new Mailer($transport);
-        $this->fromEmail = $fromEmail;
+        $this->fromEmail = $fromEmail ?? $_ENV['CLINIC_EMAIL'] ?? 'noreply@charosdental.com';
         $this->fromName = $fromName;
     }
 

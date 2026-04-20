@@ -81,7 +81,7 @@ class VerificationCodeService
 
                     <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 15px; margin: 25px 0;">
                         <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.5;">
-                            <strong style="color: #856404;">⚠️ Security Notice:</strong> This code will expire in 15 minutes for your security. Do not share this code with anyone.
+                            <strong style="color: #856404;">Security Notice:</strong> This code will expire in 15 minutes for your security. Do not share this code with anyone.
                         </p>
                     </div>
 

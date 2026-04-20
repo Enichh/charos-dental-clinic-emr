@@ -33,18 +33,25 @@ class ScheduleAppointmentUseCaseTest extends TestCase
     {
         $request = new ScheduleAppointmentRequest(
             patientId: 1,
-            dentistId: 2,
-            scheduledDateTime: new \DateTime('2025-01-15 10:00:00'),
+            adminId: 2,
+            appointmentDate: new \DateTime('+1 week'),
+            startTime: '10:00',
+            endTime: '10:30',
             notes: 'Regular checkup'
         );
+
+        $this->repository->shouldReceive('findConflictingAppointments')
+            ->once()
+            ->with(2, m::type(\DateTime::class), '10:00', '10:30')
+            ->andReturn([]);
 
         $this->repository->shouldReceive('save')
             ->once()
             ->with(m::on(function ($appointment) {
                 return $appointment instanceof Appointment
                     && $appointment->getPatientId() === 1
-                    && $appointment->getDentistId() === 2
-                    && $appointment->getStatus() === AppointmentStatus::SCHEDULED;
+                    && $appointment->getAdminId() === 2
+                    && $appointment->getStatus() === AppointmentStatus::PENDING;
             }))
             ->andReturnUsing(function ($appointment) {
                 $appointment->setId(123);
@@ -60,18 +67,25 @@ class ScheduleAppointmentUseCaseTest extends TestCase
         $this->assertEquals('Appointment scheduled successfully', $response->message);
     }
 
-    public function test_sets_default_status_to_scheduled(): void
+    public function test_sets_default_status_to_pending(): void
     {
         $request = new ScheduleAppointmentRequest(
             patientId: 1,
-            dentistId: 2,
-            scheduledDateTime: new \DateTime('2025-01-15 10:00:00')
+            adminId: 2,
+            appointmentDate: new \DateTime('+1 week'),
+            startTime: '10:00',
+            endTime: '10:30'
         );
+
+        $this->repository->shouldReceive('findConflictingAppointments')
+            ->once()
+            ->with(2, m::type(\DateTime::class), '10:00', '10:30')
+            ->andReturn([]);
 
         $this->repository->shouldReceive('save')
             ->once()
             ->with(m::on(function ($appointment) {
-                return $appointment->getStatus() === AppointmentStatus::SCHEDULED;
+                return $appointment->getStatus() === AppointmentStatus::PENDING;
             }))
             ->andReturnUsing(function ($appointment) {
                 $appointment->setId(123);
@@ -83,5 +97,58 @@ class ScheduleAppointmentUseCaseTest extends TestCase
 
         $response = $this->useCase->execute($request);
         $this->assertEquals(123, $response->appointmentId);
+    }
+
+    public function test_throws_exception_when_slot_already_booked(): void
+    {
+        $request = new ScheduleAppointmentRequest(
+            patientId: 1,
+            adminId: 2,
+            appointmentDate: new \DateTime('+1 week'),
+            startTime: '10:00',
+            endTime: '10:30'
+        );
+
+        $this->repository->shouldReceive('findConflictingAppointments')
+            ->once()
+            ->with(2, m::type(\DateTime::class), '10:00', '10:30')
+            ->andReturn([m::mock(Appointment::class)]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('This time slot is already booked');
+
+        $this->useCase->execute($request);
+    }
+
+    public function test_throws_exception_when_appointment_date_is_in_past(): void
+    {
+        $request = new ScheduleAppointmentRequest(
+            patientId: 1,
+            adminId: 2,
+            appointmentDate: new \DateTime('-1 day'),
+            startTime: '10:00',
+            endTime: '10:30'
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Appointment date must be in the future');
+
+        $this->useCase->execute($request);
+    }
+
+    public function test_throws_exception_when_start_time_after_end_time(): void
+    {
+        $request = new ScheduleAppointmentRequest(
+            patientId: 1,
+            adminId: 2,
+            appointmentDate: new \DateTime('+1 week'),
+            startTime: '11:00',
+            endTime: '10:30'
+        );
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Start time must be before end time');
+
+        $this->useCase->execute($request);
     }
 }

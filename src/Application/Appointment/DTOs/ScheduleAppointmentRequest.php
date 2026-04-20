@@ -9,8 +9,10 @@ class ScheduleAppointmentRequest
 {
     public function __construct(
         public readonly int $patientId,
-        public readonly int $dentistId,
-        public readonly \DateTime $scheduledDateTime,
+        public readonly int $adminId,
+        public readonly \DateTime $appointmentDate,
+        public readonly string $startTime,
+        public readonly string $endTime,
         public readonly ?string $notes = null
     ) {}
 
@@ -18,8 +20,10 @@ class ScheduleAppointmentRequest
     {
         $rules = [
             'patient_id' => 'required|integer',
-            'dentist_id' => 'required|integer',
-            'scheduled_datetime' => 'required|date',
+            'admin_id' => 'required|integer',
+            'appointment_date' => 'required|date',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i',
             'notes' => 'max:1000'
         ];
 
@@ -31,8 +35,10 @@ class ScheduleAppointmentRequest
 
         return new self(
             (int) $data['patient_id'],
-            (int) $data['dentist_id'],
-            new \DateTime($data['scheduled_datetime']),
+            (int) $data['admin_id'],
+            new \DateTime($data['appointment_date']),
+            $data['start_time'],
+            $data['end_time'],
             $data['notes'] ?? null
         );
     }

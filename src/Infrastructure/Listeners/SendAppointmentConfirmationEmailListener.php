@@ -4,28 +4,55 @@ namespace CharosEMR\Infrastructure\Listeners;
 
 use CharosEMR\Application\Appointment\Events\AppointmentBookedEvent;
 use CharosEMR\Application\Shared\Interfaces\MailerInterface;
+use CharosEMR\Application\Shared\Interfaces\LoggerInterface;
 use CharosEMR\Domain\User\Repositories\UserRepositoryInterface;
 
 class SendAppointmentConfirmationEmailListener
 {
     public function __construct(
         private MailerInterface $mailer,
-        private UserRepositoryInterface $userRepository
+        private UserRepositoryInterface $userRepository,
+        private LoggerInterface $logger
     ) {}
 
     public function __invoke(AppointmentBookedEvent $event): void
     {
         $appointment = $event->getAppointment();
+
+        $this->logger->info('Sending appointment confirmation email', [
+            'appointment_id' => $appointment->getId(),
+            'patient_id' => $appointment->getPatientId()
+        ]);
+
         $patient = $this->userRepository->findById($appointment->getPatientId());
 
         if (!$patient) {
+            $this->logger->error('Patient not found for appointment confirmation email', [
+                'appointment_id' => $appointment->getId(),
+                'patient_id' => $appointment->getPatientId()
+            ]);
             return;
         }
 
         $subject = 'Appointment Confirmation - Charos Dental Clinic';
         $body = $this->generateEmailBody($appointment, $patient);
 
-        $this->mailer->send($patient->getEmail(), $subject, $body);
+        try {
+            $this->mailer->send($patient->getEmail(), $subject, $body);
+            $this->logger->info('Appointment confirmation email sent successfully', [
+                'appointment_id' => $appointment->getId(),
+                'patient_id' => $appointment->getPatientId(),
+                'patient_email' => $patient->getEmail()
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to send appointment confirmation email', [
+                'appointment_id' => $appointment->getId(),
+                'patient_id' => $appointment->getPatientId(),
+                'patient_email' => $patient->getEmail(),
+                'error' => $e->getMessage()
+            ]);
+            throw $e;
+        }
     }
 
     private function generateEmailBody($appointment, $patient): string

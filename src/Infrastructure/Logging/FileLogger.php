@@ -10,7 +10,7 @@ class FileLogger implements LoggerInterface
 
     public function __construct()
     {
-        $this->logPath = __DIR__ . '/../../../../storage/logs';
+        $this->logPath = __DIR__ . '/../../../storage/logs';
         $this->ensureLogDirectory();
         $this->rotateLogs();
     }

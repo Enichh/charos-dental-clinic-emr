@@ -7,32 +7,38 @@ use CharosEMR\Domain\User\Enums\Gender;
 class Patient
 {
     private ?int $id;
-    private string $name;
-    private string $email;
-    private string $passwordHash;
+    private ?int $userId;
+    private string $firstName;
+    private string $lastName;
+    private \DateTime $dateOfBirth;
     private Gender $gender;
     private ?string $phoneNumber;
     private ?string $address;
-    private ?\DateTime $dateOfBirth;
+    private ?string $bloodType;
+    private ?string $allergies;
 
     public function __construct(
         ?int $id,
-        string $name,
-        string $email,
-        string $passwordHash,
+        ?int $userId,
+        string $firstName,
+        string $lastName,
+        \DateTime $dateOfBirth,
         Gender $gender,
         ?string $phoneNumber = null,
         ?string $address = null,
-        ?\DateTime $dateOfBirth = null
+        ?string $bloodType = null,
+        ?string $allergies = null
     ) {
         $this->id = $id;
-        $this->name = $name;
-        $this->email = $email;
-        $this->passwordHash = $passwordHash;
+        $this->userId = $userId;
+        $this->firstName = $firstName;
+        $this->lastName = $lastName;
+        $this->dateOfBirth = $dateOfBirth;
         $this->gender = $gender;
         $this->phoneNumber = $phoneNumber;
         $this->address = $address;
-        $this->dateOfBirth = $dateOfBirth;
+        $this->bloodType = $bloodType;
+        $this->allergies = $allergies;
     }
 
     public function getId(): ?int
@@ -40,19 +46,29 @@ class Patient
         return $this->id;
     }
 
-    public function getName(): string
+    public function getUserId(): ?int
     {
-        return $this->name;
+        return $this->userId;
     }
 
-    public function getEmail(): string
+    public function setUserId(int $userId): void
     {
-        return $this->email;
+        $this->userId = $userId;
     }
 
-    public function getPasswordHash(): string
+    public function getFirstName(): string
     {
-        return $this->passwordHash;
+        return $this->firstName;
+    }
+
+    public function getLastName(): string
+    {
+        return $this->lastName;
+    }
+
+    public function getDateOfBirth(): \DateTime
+    {
+        return $this->dateOfBirth;
     }
 
     public function getGender(): Gender
@@ -70,13 +86,39 @@ class Patient
         return $this->address;
     }
 
-    public function getDateOfBirth(): ?\DateTime
+    public function getBloodType(): ?string
     {
-        return $this->dateOfBirth;
+        return $this->bloodType;
+    }
+
+    public function getAllergies(): ?string
+    {
+        return $this->allergies;
     }
 
     public function setId(int $id): void
     {
         $this->id = $id;
+    }
+
+    /** Update patient profile fields in-place */
+    public function updateProfile(
+        string $firstName,
+        string $lastName,
+        \DateTime $dateOfBirth,
+        Gender $gender,
+        ?string $phoneNumber = null,
+        ?string $address = null,
+        ?string $bloodType = null,
+        ?string $allergies = null
+    ): void {
+        $this->firstName = $firstName;
+        $this->lastName = $lastName;
+        $this->dateOfBirth = $dateOfBirth;
+        $this->gender = $gender;
+        $this->phoneNumber = $phoneNumber;
+        $this->address = $address;
+        $this->bloodType = $bloodType;
+        $this->allergies = $allergies;
     }
 }

@@ -8,7 +8,7 @@ class ViewRenderer
 
     public function __construct(string $viewsPath = null)
     {
-        $this->viewsPath = $viewsPath ?? __DIR__ . '/../../../Views';
+        $this->viewsPath = $viewsPath ?? __DIR__ . '/../../Views';
     }
 
     public function render(string $view, array $data = []): void

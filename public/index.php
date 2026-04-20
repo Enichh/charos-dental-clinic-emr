@@ -87,9 +87,10 @@ $controllerMethod = $controllerInfo[1];
 
 $controllerInstance = $container->get($controllerClass);
 
-foreach ($middlewares as $middlewareClass) {
-    $middleware = $container->get($middlewareClass);
-    $next = function () use (&$middlewares, &$middlewareClass, $controllerInstance, $controllerMethod) {
+foreach ($middlewares as $middlewareName) {
+    $middleware = $container->get($middlewareName);
+
+    $next = function () use (&$middlewares, &$middlewareName, $controllerInstance, $controllerMethod) {
         $controllerInstance->$controllerMethod();
     };
     $middleware->handle($next);

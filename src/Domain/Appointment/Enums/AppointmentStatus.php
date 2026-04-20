@@ -4,7 +4,7 @@ namespace CharosEMR\Domain\Appointment\Enums;
 
 enum AppointmentStatus: string
 {
-    case SCHEDULED = 'scheduled';
+    case PENDING = 'pending';
     case CONFIRMED = 'confirmed';
     case COMPLETED = 'completed';
     case CANCELLED = 'cancelled';
