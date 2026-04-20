@@ -12,6 +12,7 @@ src/Core/Config/database.php
 # Logs
 *.log
 /logs/
+/storage/
 
 # IDE
 /.idea/

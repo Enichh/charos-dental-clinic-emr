@@ -1,0 +1,210 @@
+/* Patient Dashboard Styles */
+
+.patient-dashboard {
+  padding: var(--spacing-xl);
+}
+
+.dashboard-header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-header h1 {
+  color: var(--primary-blue);
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-sm);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: var(--spacing-xl);
+}
+
+.card-header {
+  border-bottom: 2px solid var(--border-blue);
+  padding-bottom: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.card-header h2 {
+  color: var(--secondary-blue);
+  font-size: var(--font-size-xl);
+}
+
+.profile-section {
+  display: flex;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.profile-avatar {
+  flex-shrink: 0;
+}
+
+.profile-details p {
+  margin-bottom: var(--spacing-sm);
+}
+
+.appointment-item,
+.prescription-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border-blue);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.appointment-date {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--light-blue);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  min-width: 60px;
+}
+
+.date-day {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-blue);
+}
+
+.date-month {
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  color: var(--secondary-blue);
+}
+
+.appointment-details,
+.prescription-details {
+  flex: 1;
+}
+
+.appointment-details h3,
+.prescription-details h3 {
+  color: var(--text-dark);
+  margin-bottom: var(--spacing-xs);
+}
+
+.appointment-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+}
+
+.quick-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  border: 2px solid var(--border-blue);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--text-dark);
+  transition: all var(--transition-base);
+}
+
+.quick-action:hover {
+  background: var(--light-blue);
+  border-color: var(--primary-blue);
+  transform: translateY(-2px);
+}
+
+.quick-action span {
+  font-weight: 500;
+}
+
+.health-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.health-item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: var(--light-gray);
+  border-radius: var(--radius-md);
+}
+
+.health-label {
+  color: var(--text-light);
+  font-weight: 500;
+}
+
+.health-value {
+  color: var(--text-dark);
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.badge-active {
+  background: var(--success-light);
+  color: var(--success-dark);
+}
+
+.badge-pending {
+  background: var(--light-blue);
+  color: var(--secondary-blue);
+}
+
+.badge-expired {
+  background: var(--error-light);
+  color: var(--error-dark);
+}
+
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-section {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-item,
+  .prescription-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .appointment-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
